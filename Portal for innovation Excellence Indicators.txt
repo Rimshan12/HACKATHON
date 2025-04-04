@@ -1,0 +1,148 @@
+import java.io.*;
+import java.net.*;
+import java.util.*;
+import com.sun.net.httpserver.*;
+
+class User {
+    String id;
+    String name;
+    String role; 
+
+    public User(String id, String name, String role) {
+        this.id = id;
+        this.name = name;
+        this.role = role;
+    }
+}
+
+class InnovationIndicator {
+    String id;
+    String name;
+    String description;
+    int value;
+
+    public InnovationIndicator(String id, String name, String description, int value) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.value = value;
+    }
+}
+
+class Department {
+    String name;
+    List<InnovationIndicator> indicators = new ArrayList<>();
+
+    public Department(String name) {
+        this.name = name;
+    }
+
+    public void addIndicator(InnovationIndicator indicator) {
+        indicators.add(indicator);
+    }
+
+    public int totalScore() {
+        return indicators.stream().mapToInt(i -> i.value).sum();
+    }
+}
+
+public class Main {
+    static Map<String, User> users = new HashMap<>();
+    static Map<String, Department> departments = new HashMap<>();
+    static Scanner scanner = new Scanner(System.in);
+
+    public static void main(String[] args) throws IOException {
+        initializeSampleData();
+        collectDynamicInput();
+
+   
+        printDashboardToConsole();
+
+        HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+        server.createContext("/", new DashboardHandler());
+        server.setExecutor(null);
+        server.start();
+
+        System.out.println("Server started on http://localhost:8080");
+    }
+
+    public static void collectDynamicInput() {
+        System.out.println("\nWould you like to add a new department? (yes/no)");
+        if (scanner.nextLine().equalsIgnoreCase("yes")) {
+            System.out.print("Enter department name: ");
+            String deptName = scanner.nextLine();
+            Department newDept = new Department(deptName);
+            departments.put(deptName.toLowerCase().replace(" ", "_"), newDept);
+
+            while (true) {
+                System.out.print("Add an innovation indicator? (yes/no): ");
+                if (!scanner.nextLine().equalsIgnoreCase("yes")) break;
+                System.out.print("Indicator ID: ");
+                String id = scanner.nextLine();
+                System.out.print("Name: ");
+                String name = scanner.nextLine();
+                System.out.print("Description: ");
+                String desc = scanner.nextLine();
+                System.out.print("Value: ");
+                int value = Integer.parseInt(scanner.nextLine());
+
+                newDept.addIndicator(new InnovationIndicator(id, name, desc, value));
+            }
+        }
+    }
+
+    public static void printDashboardToConsole() {
+        System.out.println("\nInnovation Excellence Dashboard");
+        System.out.println("Welcome, Alice (admin)\n");
+        for (Department dept : departments.values()) {
+            System.out.println("Department: " + dept.name);
+            for (InnovationIndicator i : dept.indicators) {
+                System.out.println("- " + i.name + ": " + i.value);
+            }
+            System.out.println("Total Score: " + dept.totalScore());
+            System.out.println();
+        }
+    }
+
+    static class DashboardHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            StringBuilder html = new StringBuilder();
+            html.append("<!DOCTYPE html><html><head><title>Innovation Portal</title>");
+            html.append("<style>body{font-family:sans-serif;background:#f0f0f0;padding:20px}h1,h2{color:#333}.department{margin-bottom:20px;padding:10px;background:#fff;border-radius:5px;box-shadow:0 2px 5px rgba(0,0,0,0.1)}table{width:100%;border-collapse:collapse}th,td{padding:8px;text-align:left;border:1px solid #ddd}th{background:#eee}.total{font-weight:bold;text-align:right}</style>");
+            html.append("</head><body>");
+            html.append("<h1>Innovation Excellence Dashboard</h1>");
+            html.append("<h2>Welcome, Alice (admin)</h2>");
+
+            for (Department dept : departments.values()) {
+                html.append("<div class='department'><h3>").append(dept.name).append("</h3>");
+                html.append("<table><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>");
+                for (InnovationIndicator i : dept.indicators) {
+                    html.append("<tr><td>").append(i.name).append("</td><td>").append(i.value).append("</td></tr>");
+                }
+                html.append("</tbody></table>");
+                html.append("<div class='total'>Total Score: ").append(dept.totalScore()).append("</div>");
+                html.append("</div>");
+            }
+
+            html.append("</body></html>");
+            byte[] response = html.toString().getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "text/html");
+            exchange.sendResponseHeaders(200, response.length);
+            OutputStream os = exchange.getResponseBody();
+            os.write(response);
+            os.close();
+        }
+    }
+
+    public static void initializeSampleData() {
+        users.put("u1", new User("u1", "Alice", "admin"));
+        users.put("u2", new User("u2", "Bob", "faculty"));
+
+        Department cs = new Department("Computer Science");
+        cs.addIndicator(new InnovationIndicator("i1", "Papers Published", "Number of research papers", 25));
+        cs.addIndicator(new InnovationIndicator("i2", "Patents Filed", "Number of patents", 5));
+
+        departments.put("cs", cs);
+    }
+}
